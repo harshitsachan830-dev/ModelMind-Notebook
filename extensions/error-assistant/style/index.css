@@ -1,0 +1,491 @@
+@import url('base.css');
+
+:root {
+  --ml-assistant-panel-bg: #f5f6f8;
+  --ml-assistant-card-bg: #fff;
+  --ml-assistant-border: #dfe3ea;
+  --ml-assistant-text: #253041;
+  --ml-assistant-muted: #5d6b80;
+  --ml-assistant-accent: #6d7cff;
+  --ml-assistant-accent-soft: #eef1ff;
+  --ml-assistant-error-bg: #f7dfe3;
+  --ml-assistant-error-text: #a33d4d;
+  --ml-assistant-success-bg: #dff5eb;
+  --ml-assistant-success-text: #1d7b54;
+  --ml-assistant-warn-bg: #fdf0d5;
+  --ml-assistant-warn-text: #9c6b11;
+  --ml-assistant-shadow: rgb(31 41 55 / 8%);
+}
+
+.ml-platform-error-assistant-panel {
+  background: var(--ml-assistant-panel-bg);
+  color: var(--ml-assistant-text);
+  border-left: 1px solid var(--ml-assistant-border);
+}
+
+[id='jp-MainLogo'] {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  width: auto;
+  min-width: 185px;
+  padding-right: 12px;
+}
+
+[id='jp-MainLogo'] > * {
+  display: none;
+}
+
+[id='jp-MainLogo']::before {
+  display: block;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  background: url('./modelmind-logo.png') center / contain no-repeat;
+  content: '';
+}
+
+[id='jp-MainLogo']::after {
+  margin-left: 8px;
+  color: #172554;
+  content: 'ModelMind Notebook';
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ml-assistant-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 14px 14px 18px;
+  box-sizing: border-box;
+  gap: 12px;
+}
+
+.ml-assistant-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ml-assistant-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.35;
+  font-weight: 700;
+  color: var(--ml-assistant-text);
+}
+
+.ml-assistant-header-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ml-assistant-cloud-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 190px;
+  color: var(--ml-assistant-text);
+  font-size: 11px;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.ml-assistant-cloud-option input {
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--ml-assistant-accent);
+}
+
+.ml-assistant-cloud-option input:disabled {
+  cursor: not-allowed;
+}
+
+.ml-assistant-provider-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--ml-assistant-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ml-assistant-provider-select {
+  min-width: 128px;
+  border: 1px solid var(--ml-assistant-border);
+  border-radius: 6px;
+  padding: 5px 7px;
+  background: white;
+  color: var(--ml-assistant-text);
+  font-size: 11px;
+}
+
+.ml-assistant-primary-button,
+.ml-assistant-secondary-button,
+.ml-assistant-cta-button,
+.ml-assistant-actions button,
+.ml-assistant-tab {
+  border: 1px solid var(--ml-assistant-border);
+  border-radius: 8px;
+  background: white;
+  color: var(--ml-assistant-text);
+  font-size: 12px;
+  padding: 7px 10px;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.ml-assistant-primary-button {
+  background: var(--ml-assistant-accent-soft);
+  border-color: rgb(109 124 255 / 35%);
+  color: var(--ml-assistant-accent);
+  font-weight: 600;
+}
+
+.ml-assistant-secondary-button {
+  background: white;
+}
+
+.ml-assistant-status-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  min-height: 24px;
+}
+
+.ml-assistant-status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.ml-assistant-status-default {
+  background: #eef2f6;
+  color: var(--ml-assistant-muted);
+}
+
+.ml-assistant-status-success {
+  background: var(--ml-assistant-success-bg);
+  color: var(--ml-assistant-success-text);
+}
+
+.ml-assistant-status-warn {
+  background: var(--ml-assistant-warn-bg);
+  color: var(--ml-assistant-warn-text);
+}
+
+.ml-assistant-tab-row {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--ml-assistant-border);
+  padding-bottom: 4px;
+}
+
+.ml-assistant-tab {
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  border-radius: 6px 6px 0 0;
+  padding: 8px 9px;
+  color: var(--ml-assistant-muted);
+  font-weight: 500;
+}
+
+.ml-assistant-tab.active {
+  background: var(--ml-assistant-accent-soft);
+  color: var(--ml-assistant-accent);
+  border: 1px solid rgb(109 124 255 / 25%);
+}
+
+.ml-assistant-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 1px 3px 6px 1px;
+  scrollbar-gutter: stable;
+}
+
+.ml-assistant-question-input {
+  width: 100%;
+  min-height: 92px;
+  box-sizing: border-box;
+  resize: vertical;
+  border: 1px solid var(--ml-assistant-border);
+  border-radius: 8px;
+  background: white;
+  color: var(--ml-assistant-text);
+  padding: 10px 12px;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.ml-assistant-question-label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: var(--ml-assistant-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ml-assistant-code-help-answer {
+  border-left: 3px solid var(--ml-assistant-accent);
+  padding: 4px 0 4px 12px;
+  color: var(--ml-assistant-text);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.ml-assistant-code-help-answer p {
+  margin: 0 0 8px;
+}
+
+.ml-assistant-code-help-answer ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.ml-assistant-empty {
+  border: 1px dashed var(--ml-assistant-border);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 40%);
+  color: var(--ml-assistant-muted);
+  padding: 20px 16px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.ml-assistant-cta-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.ml-assistant-cta-button {
+  align-self: flex-start;
+  background: var(--ml-assistant-accent);
+  border-color: var(--ml-assistant-accent);
+  color: white;
+  font-weight: 600;
+  padding: 9px 14px;
+}
+
+.ml-assistant-result-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ml-assistant-error-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 8px;
+  background: #fff1f1;
+  border: 1px solid rgb(163 61 77 / 20%);
+  padding: 11px 12px;
+  color: var(--ml-assistant-error-text);
+}
+
+.ml-assistant-error-icon {
+  display: inline-flex;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #d92d20;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ml-assistant-error-copy {
+  min-width: 0;
+}
+
+.ml-assistant-error-title {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 1px 0 3px;
+  overflow-wrap: anywhere;
+}
+
+.ml-assistant-error-message {
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.ml-assistant-traceback {
+  border: 1px solid var(--ml-assistant-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ml-assistant-muted);
+}
+
+.ml-assistant-traceback details {
+  padding: 8px 10px;
+}
+
+.ml-assistant-traceback summary {
+  color: var(--ml-assistant-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ml-assistant-traceback pre {
+  max-height: 240px;
+  margin: 8px 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ml-assistant-text);
+}
+
+.ml-assistant-card {
+  border-radius: 10px;
+  border: 1px solid var(--ml-assistant-border);
+  padding: 12px;
+  background: white;
+  box-shadow: 0 1px 2px var(--ml-assistant-shadow);
+}
+
+.ml-assistant-card-blue {
+  background: #edf4ff;
+  border-color: #d3e3ff;
+}
+
+.ml-assistant-card-green {
+  background: #edf9f2;
+  border-color: #cfeee1;
+}
+
+.ml-assistant-card-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #173ea5;
+  margin-bottom: 7px;
+}
+
+.ml-assistant-card p {
+  margin: 0 0 8px;
+  color: var(--ml-assistant-text);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.ml-assistant-card ul {
+  margin: 0;
+  padding-left: 17px;
+  color: var(--ml-assistant-text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ml-assistant-card li + li {
+  margin-top: 4px;
+}
+
+.ml-assistant-code-block {
+  background: rgb(255 255 255 / 80%);
+  border: 1px solid var(--ml-assistant-border);
+  border-radius: 7px;
+  padding: 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ml-assistant-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+  padding-bottom: 2px;
+}
+
+.ml-assistant-actions button {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ml-assistant-actions .ml-assistant-action-wide {
+  grid-column: 1 / -1;
+}
+
+@media (width <= 520px) {
+  [id='jp-MainLogo'] {
+    min-width: 0;
+  }
+
+  [id='jp-MainLogo']::after {
+    content: 'ModelMind';
+  }
+
+  .ml-assistant-header {
+    flex-wrap: wrap;
+  }
+
+  .ml-assistant-header-controls {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .ml-assistant-cloud-option {
+    max-width: none;
+  }
+}
+
+.ml-assistant-primary-button:focus-visible,
+.ml-assistant-secondary-button:focus-visible,
+.ml-assistant-cta-button:focus-visible,
+.ml-assistant-actions button:focus-visible,
+.ml-assistant-tab:focus-visible,
+.ml-assistant-question-input:focus-visible {
+  outline: 2px solid var(--ml-assistant-accent);
+  outline-offset: 2px;
+}
+
+.ml-assistant-primary-button:disabled,
+.ml-assistant-secondary-button:disabled,
+.ml-assistant-cta-button:disabled,
+.ml-assistant-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.ml-assistant-primary-button:hover:not(:disabled),
+.ml-assistant-secondary-button:hover:not(:disabled),
+.ml-assistant-cta-button:hover:not(:disabled),
+.ml-assistant-actions button:hover:not(:disabled) {
+  box-shadow: 0 2px 7px var(--ml-assistant-shadow);
+}

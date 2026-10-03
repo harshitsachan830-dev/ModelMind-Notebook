@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "recommended_model": {
+    "id": "qwen2.5-coder:7b",
+    "provider": "ollama",
+    "purpose": "Local coding model for notebook error explanations",
+    "license": "Apache-2.0",
+    "publisher_model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+    "ollama_package_size_gb": 4.7,
+    "context_window_tokens": 32768,
+    "hardware_guidance": {
+      "recommended_unified_memory_gb": 16,
+      "notes": "Leave additional memory for macOS, Jupyter, the notebook kernel, and context. Reduce context or choose a smaller model on lower-memory devices."
+    },
+    "sources": [
+      "https://ollama.com/library/qwen2.5-coder",
+      "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct"
+    ]
+  },
+  "download_policy": "never_automatic"
+}

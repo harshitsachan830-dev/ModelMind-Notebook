@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="3" failures="0" errors="0" time="0.742">
+  <testsuite name="@ml-platform/error-assistant" errors="0" failures="0" skipped="0" timestamp="2026-10-03T10:11:13" time="0.446" tests="3">
+    <testcase classname="@ml-platform/error-assistant uses the Jupyter base URL and returns the server JSON response" name="@ml-platform/error-assistant uses the Jupyter base URL and returns the server JSON response" time="0.001">
+    </testcase>
+    <testcase classname="@ml-platform/error-assistant writes the suggested code through the cell shared model" name="@ml-platform/error-assistant writes the suggested code through the cell shared model" time="0">
+    </testcase>
+    <testcase classname="@ml-platform/error-assistant rejects a missing cell model or empty code suggestion" name="@ml-platform/error-assistant rejects a missing cell model or empty code suggestion" time="0">
+    </testcase>
+  </testsuite>
+</testsuites>

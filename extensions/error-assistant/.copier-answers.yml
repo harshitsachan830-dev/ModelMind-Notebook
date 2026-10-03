@@ -1,0 +1,16 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: v4.6.1
+_src_path: https://github.com/jupyterlab/extension-template
+advanced: false
+author_email: ''
+author_name: ML Platform Contributors
+has_ai_rules: false
+has_binder: false
+has_settings: false
+kind: frontend-and-server
+labextension_name: '@ml-platform/error-assistant'
+project_short_description: JupyterLab error assistant frontend and server extension
+python_name: ml_platform_error_assistant
+repository: ''
+test: true
+

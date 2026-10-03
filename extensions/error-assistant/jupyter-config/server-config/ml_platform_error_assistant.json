@@ -1,0 +1,7 @@
+{
+  "ServerApp": {
+    "jpserver_extensions": {
+      "ml_platform_error_assistant": true
+    }
+  }
+}
