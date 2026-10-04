@@ -20,6 +20,7 @@ import {
   loadTutorExplanation,
   renderTutorInElement,
 } from './debugger-tutor';
+import { createAIChatbotPanel } from './ai-chatbot';
 
 const COMMAND_ID = '@ml-platform/error-assistant:open';
 const MAX_CODE_LENGTH = 20_000;
@@ -933,6 +934,37 @@ const plugin: JupyterFrontEndPlugin<void> = {
 
     // ── Initialise the AI Debugger Tutor FAB (bottom-right slide panel) ──
     createTutorFAB(app.serviceManager.serverSettings);
+
+    // ═══════════════════════════════════════════════════════════
+    // RIGHT SIDEBAR — AI Chatbot Panel
+    // ═══════════════════════════════════════════════════════════
+    const chatbotWidget = new Widget();
+    chatbotWidget.id = 'mm-ai-chatbot-panel';
+    chatbotWidget.title.label = '💬 AI Chat';
+    chatbotWidget.title.caption = 'AI Chatbot — powered by Ollama & Gemini';
+    chatbotWidget.addClass('mm-chatbot-widget');
+
+    // Context getters: provide live notebook context to chatbot
+    const getActiveCodeForChat = (): string => {
+      const cell = getTargetCell(notebooks);
+      if (!cell || !isCodeCellModel(cell.model)) return '';
+      const src = cell.model.toJSON().source;
+      return (Array.isArray(src) ? src.join('') : src).slice(0, MAX_CODE_LENGTH);
+    };
+
+    const getActiveErrorForChat = () => {
+      const cell = getTargetCell(notebooks);
+      return captureActiveError(cell) || _lastCapturedError;
+    };
+
+    const chatbotRoot = createAIChatbotPanel(
+      app.serviceManager.serverSettings,
+      getActiveCodeForChat,
+      getActiveErrorForChat
+    );
+    chatbotWidget.node.style.cssText = 'height:100%;overflow:hidden;';
+    chatbotWidget.node.appendChild(chatbotRoot);
+    app.shell.add(chatbotWidget, 'right', { rank: 800 });
 
     // ═══════════════════════════════════════════════════════════
     // AUTO-TRIGGER: Fire the Tutor immediately when any cell fails

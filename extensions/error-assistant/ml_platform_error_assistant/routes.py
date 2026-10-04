@@ -13,7 +13,7 @@ from .cloud_policy import (
     health_policy_status,
 )
 from .diagnostics import analyze_error
-from .gemini import suggest_fix_with_gemini
+from .gemini import suggest_fix_with_gemini, chat_with_gemini
 from .fix_validation import (
     normalize_fix_payload,
     suggest_rowwise_apply_fix,
@@ -26,6 +26,7 @@ from .ollama import (
     explain_code_with_ollama,
     explain_with_ollama,
     suggest_fix_with_ollama,
+    chat_with_ollama,
 )
 from .dataset_intelligence import (
     analyze_dataset,
@@ -446,6 +447,62 @@ class PreprocessingAdviserHandler(APIHandler):
 
 
 # =========================================================
+# AI CHATBOT HANDLER
+# =========================================================
+
+class AIChatHandler(APIHandler):
+    @tornado.web.authenticated
+    async def post(self):
+        self.set_header("Content-Type", "application/json")
+        if len(self.request.body) > 65_536:
+            self.set_status(413)
+            self.finish(json.dumps({"error": "Chat request too large."}))
+            return
+
+        try:
+            payload = json.loads(self.request.body)
+            if not isinstance(payload, dict):
+                raise ValueError("Request body must be a JSON object.")
+            message = str(payload.get("message", "")).strip()[:4000]
+            if not message:
+                raise ValueError("message cannot be empty.")
+            provider = str(payload.get("provider", "ollama"))
+            if provider not in {"ollama", "gemini"}:
+                raise ValueError("provider must be 'ollama' or 'gemini'.")
+            history = payload.get("history", [])
+            if not isinstance(history, list):
+                history = []
+            context = payload.get("context", {})
+            if not isinstance(context, dict):
+                context = {}
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as err:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(err)}))
+            return
+
+        if provider == "gemini":
+            if not gemini_api_key_configured():
+                self.finish(json.dumps({
+                    "status": "gemini_unconfigured",
+                    "message": "Set GEMINI_API_KEY in the Jupyter server environment to enable Gemini.",
+                }))
+                return
+            result = await chat_with_gemini(
+                message=message,
+                history=history,
+                context=context,
+            )
+        else:
+            result = await chat_with_ollama(
+                message=message,
+                history=history,
+                context=context,
+            )
+
+        self.finish(json.dumps(result))
+
+
+# =========================================================
 # AI DEBUGGER TUTOR HANDLER
 # =========================================================
 
@@ -501,6 +558,7 @@ def setup_route_handlers(web_app):
     dataset_xray_route_pattern = url_path_join(base_url, "api", "dataset", "xray")
     preprocessing_adviser_route_pattern = url_path_join(base_url, "api", "dataset", "preprocessing")
     debugger_tutor_route_pattern = url_path_join(base_url, "api", "ai", "tutor")
+    ai_chat_route_pattern = url_path_join(base_url, "api", "ai", "chat")
 
     handlers = [
         (health_route_pattern, HealthHandler),
@@ -516,6 +574,7 @@ def setup_route_handlers(web_app):
         (dataset_xray_route_pattern, DatasetXRayHandler),
         (preprocessing_adviser_route_pattern, PreprocessingAdviserHandler),
         (debugger_tutor_route_pattern, DebuggerTutorHandler),
+        (ai_chat_route_pattern, AIChatHandler),
     ]
 
     web_app.add_handlers(host_pattern, handlers)
