@@ -1,4 +1,6 @@
 import json
+import os
+import pathlib
 
 import tornado
 
@@ -24,6 +26,11 @@ from .ollama import (
     explain_code_with_ollama,
     explain_with_ollama,
     suggest_fix_with_ollama,
+)
+from .dataset_intelligence import (
+    analyze_dataset,
+    analyze_preprocessing,
+    analyze_error_for_tutor,
 )
 
 MAX_CAPTURE_BYTES = 40_000
@@ -366,6 +373,116 @@ class ValidateFixHandler(APIHandler):
         self.finish(json.dumps(result))
 
 
+
+# =========================================================
+# DATASET X-RAY HANDLER
+# =========================================================
+
+class DatasetXRayHandler(APIHandler):
+    @tornado.web.authenticated
+    def post(self):
+        self.set_header("Content-Type", "application/json")
+        try:
+            payload = json.loads(self.request.body)
+            file_path = payload.get("file_path", "")
+            if not isinstance(file_path, str) or not file_path.strip():
+                raise ValueError("file_path must be a non-empty string.")
+        except (json.JSONDecodeError, ValueError) as exc:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+
+        path = pathlib.Path(file_path)
+        if not path.exists() or not path.is_file():
+            self.set_status(404)
+            self.finish(json.dumps({"error": "Dataset file not found.", "path": str(path)}))
+            return
+
+        try:
+            result = analyze_dataset(path)
+        except Exception as exc:
+            self.set_status(500)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+
+        self.finish(json.dumps(result))
+
+
+# =========================================================
+# SMART PREPROCESSING ADVISER HANDLER
+# =========================================================
+
+class PreprocessingAdviserHandler(APIHandler):
+    @tornado.web.authenticated
+    def post(self):
+        self.set_header("Content-Type", "application/json")
+        try:
+            payload = json.loads(self.request.body)
+            file_path = payload.get("file_path", "")
+            level = payload.get("level", "basic")
+            if not isinstance(file_path, str) or not file_path.strip():
+                raise ValueError("file_path must be a non-empty string.")
+            if not isinstance(level, str):
+                raise ValueError("level must be a string.")
+        except (json.JSONDecodeError, ValueError) as exc:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+
+        path = pathlib.Path(file_path)
+        if not path.exists() or not path.is_file():
+            self.set_status(404)
+            self.finish(json.dumps({"error": "Dataset file not found.", "path": str(path)}))
+            return
+
+        try:
+            result = analyze_preprocessing(path, level=level)
+        except Exception as exc:
+            self.set_status(500)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+
+        self.finish(json.dumps(result))
+
+
+# =========================================================
+# AI DEBUGGER TUTOR HANDLER
+# =========================================================
+
+class DebuggerTutorHandler(APIHandler):
+    @tornado.web.authenticated
+    def post(self):
+        self.set_header("Content-Type", "application/json")
+        try:
+            payload = json.loads(self.request.body)
+            error_type = str(payload.get("error_type", ""))[:200]
+            error_message = str(payload.get("error_message", ""))[:2000]
+            traceback = str(payload.get("traceback", ""))[:12000]
+            code = str(payload.get("code", ""))[:20000]
+            level = str(payload.get("level", "basic"))
+            if not error_type:
+                raise ValueError("error_type is required.")
+        except (json.JSONDecodeError, ValueError) as exc:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+
+        try:
+            result = analyze_error_for_tutor(
+                error_type=error_type,
+                error_message=error_message,
+                traceback=traceback,
+                code=code,
+                level=level,
+            )
+        except Exception as exc:
+            self.set_status(500)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+
+        self.finish(json.dumps(result))
+
+
 def setup_route_handlers(web_app):
     host_pattern = ".*$"
     base_url = web_app.settings["base_url"]
@@ -379,6 +496,12 @@ def setup_route_handlers(web_app):
     suggest_fix_route_pattern = url_path_join(base_url, "api", "ai", "fix")
     code_help_route_pattern = url_path_join(base_url, "api", "ai", "code-help")
     validate_fix_route_pattern = url_path_join(base_url, "api", "ai", "validate-fix")
+
+    # New routes
+    dataset_xray_route_pattern = url_path_join(base_url, "api", "dataset", "xray")
+    preprocessing_adviser_route_pattern = url_path_join(base_url, "api", "dataset", "preprocessing")
+    debugger_tutor_route_pattern = url_path_join(base_url, "api", "ai", "tutor")
+
     handlers = [
         (health_route_pattern, HealthHandler),
         (analyze_error_route_pattern, AnalyzeErrorHandler),
@@ -389,6 +512,11 @@ def setup_route_handlers(web_app):
         (suggest_fix_route_pattern, SuggestFixHandler),
         (code_help_route_pattern, CodeHelpHandler),
         (validate_fix_route_pattern, ValidateFixHandler),
+        # ── New features ──
+        (dataset_xray_route_pattern, DatasetXRayHandler),
+        (preprocessing_adviser_route_pattern, PreprocessingAdviserHandler),
+        (debugger_tutor_route_pattern, DebuggerTutorHandler),
     ]
 
     web_app.add_handlers(host_pattern, handlers)
+

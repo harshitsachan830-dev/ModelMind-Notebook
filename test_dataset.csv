@@ -1,0 +1,15 @@
+age,salary,experience,promoted,department
+21,22000,1,0,Engineering
+24,,2,0,Marketing
+27,30000,3,1,Engineering
+30,35000,5,1,HR
+33,39000,6,0,Marketing
+36,44000,8,1,Engineering
+39,50000,10,1,Engineering
+42,56000,11,1,HR
+45,,13,1,Marketing
+48,68000,15,1,Engineering
+51,75000,17,1,HR
+54,82000,20,1,Engineering
+30,35000,5,1,HR
+33,39000,6,0,Marketing

@@ -12,6 +12,14 @@ import modelMindLogo from '../style/modelmind-logo.png';
 
 import { applyFixToCellModel } from './fix-utils';
 import { requestAPI } from './request';
+import { loadAndRenderDatasetXRay } from './dataset-xray';
+import { loadAndRenderPreprocessingAdviser } from './preprocessing-adviser';
+import { openModelVisualizationLab } from './model-visualization-lab';
+import {
+  createFAB as createTutorFAB,
+  loadTutorExplanation,
+  renderTutorInElement,
+} from './debugger-tutor';
 
 const COMMAND_ID = '@ml-platform/error-assistant:open';
 const MAX_CODE_LENGTH = 20_000;
@@ -366,7 +374,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
 
     const tabRow = document.createElement('div');
     tabRow.className = 'ml-assistant-tab-row';
-    const tabs = ['Explain Error', 'Suggest Fix', 'Code Help', 'Ask AI'];
+    const tabs = ['Explain Error', 'Suggest Fix', 'Code Help', 'Ask AI', '🎓 Tutor', 'Dataset X-Ray', 'Preprocessing', '⚗️ Model Lab'];
     const tabButtons = new Map<string, HTMLButtonElement>();
     tabs.forEach((tabText, index) => {
       const btn = document.createElement('button');
@@ -376,6 +384,11 @@ const plugin: JupyterFrontEndPlugin<void> = {
       tabRow.appendChild(btn);
       tabButtons.set(tabText, btn);
     });
+
+    // Error & dataset tracking
+    let _lastCapturedError: CapturedError | null = null;
+    let _uploadedDatasetPath = '';
+    let _prepLevel: 'basic' | 'medium' | 'advanced' = 'basic';
 
     const ctaWrap = document.createElement('div');
     ctaWrap.className = 'ml-assistant-cta-row';
@@ -492,6 +505,20 @@ const plugin: JupyterFrontEndPlugin<void> = {
       loading.className = 'ml-assistant-empty';
       loading.textContent = 'Capturing error...';
       content.appendChild(loading);
+
+      // ── Also auto-trigger the Tutor for every error ──
+      if (error) {
+        _lastCapturedError = error;
+        void loadTutorExplanation(
+          {
+            error_type: error.error_type,
+            error_message: error.error_message,
+            traceback: error.traceback,
+            code: error.code,
+          },
+          app.serviceManager.serverSettings
+        );
+      }
 
       try {
         const result = await requestAPI<{
@@ -749,6 +776,76 @@ const plugin: JupyterFrontEndPlugin<void> = {
       tabButton.addEventListener('click', () => {
         tabButtons.forEach(button => button.classList.remove('active'));
         tabButton.classList.add('active');
+
+        if (tabText === '⚗️ Model Lab') {
+          openModelVisualizationLab();
+          return;
+        }
+
+        if (tabText === 'Dataset X-Ray') {
+          content.replaceChildren();
+          if (!_uploadedDatasetPath) {
+            const msg = document.createElement('div');
+            msg.className = 'ml-assistant-empty';
+            msg.innerHTML = '<strong>📂 No dataset detected.</strong><br><br>Upload a .csv, .xlsx, or .json file to your notebook workspace first, then return here.';
+            content.appendChild(msg);
+            return;
+          }
+          void loadAndRenderDatasetXRay(
+            content,
+            _uploadedDatasetPath,
+            app.serviceManager.serverSettings
+          );
+          return;
+        }
+
+        if (tabText === 'Preprocessing') {
+          content.replaceChildren();
+          if (!_uploadedDatasetPath) {
+            const msg = document.createElement('div');
+            msg.className = 'ml-assistant-empty';
+            msg.innerHTML = '<strong>📂 No dataset detected.</strong><br><br>Upload a dataset file first.';
+            content.appendChild(msg);
+            return;
+          }
+          void loadAndRenderPreprocessingAdviser(
+            content,
+            _uploadedDatasetPath,
+            _prepLevel,
+            app.serviceManager.serverSettings,
+            (lvl) => {
+              _prepLevel = lvl;
+              void loadAndRenderPreprocessingAdviser(
+                content,
+                _uploadedDatasetPath,
+                lvl,
+                app.serviceManager.serverSettings,
+                () => {/* inner level changes update in-place */}
+              );
+            }
+          );
+          return;
+        }
+
+        if (tabText === '🎓 Tutor') {
+          content.replaceChildren();
+          const targetCell = getTargetCell(notebooks);
+          const activeErr = captureActiveError(targetCell) || _lastCapturedError;
+          void renderTutorInElement(
+            content,
+            activeErr
+              ? {
+                  error_type: activeErr.error_type,
+                  error_message: activeErr.error_message,
+                  traceback: activeErr.traceback,
+                  code: activeErr.code,
+                }
+              : null,
+            app.serviceManager.serverSettings
+          );
+          return;
+        }
+
         if (tabText === 'Code Help' || tabText === 'Ask AI') {
           analysisMode = 'explain';
           showCodeHelp();
@@ -757,6 +854,35 @@ const plugin: JupyterFrontEndPlugin<void> = {
         analysisMode = tabText === 'Suggest Fix' ? 'suggest' : 'explain';
         void captureButton.click();
       });
+    });
+
+    // ── Detect dataset uploads via notebook variable introspection ──
+    notebooks.currentChanged.connect(() => {
+      const nb = notebooks.currentWidget;
+      if (!nb) return;
+      nb.context.fileChanged.connect(() => {
+        // Re-check after saves
+      });
+    });
+
+    // ── Watch for file-related code patterns to auto-detect datasets ──
+    notebooks.activeCellChanged.connect(() => {
+      const cell = notebooks.activeCell;
+      if (!cell || !isCodeCellModel(cell.model)) return;
+      const source = cell.model.toJSON().source;
+      const code = Array.isArray(source) ? source.join('') : source;
+      const match = code.match(/['"]([^'"]+\.(?:csv|xlsx|xls|json))['"]/);
+      if (match) {
+        const filename = match[1];
+        // Build likely absolute path using notebook context
+        const nb = notebooks.currentWidget;
+        if (nb) {
+          const nbPath = nb.context.path;
+          const dir = nbPath.includes('/') ? nbPath.substring(0, nbPath.lastIndexOf('/')) : '';
+          const resolved = dir ? `${dir}/${filename}` : filename;
+          _uploadedDatasetPath = resolved;
+        }
+      }
     });
 
     installButton.addEventListener('click', async () => {
@@ -792,6 +918,359 @@ const plugin: JupyterFrontEndPlugin<void> = {
     });
 
     app.shell.add(panel, 'right', { rank: 900 });
+
+    // ── Redirect listener: switch to AI Assistant when requested by Tutor (<70% confidence) ──
+    window.addEventListener('modelmind:open-ai-assistant', (e: any) => {
+      app.shell.activateById(panel.id);
+      const mode = e?.detail?.mode === 'suggest' ? 'Suggest Fix' : 'Explain Error';
+      const targetTab = tabButtons.get(mode) || tabButtons.get('Explain Error');
+      if (targetTab) {
+        targetTab.click();
+      } else {
+        void captureButton.click();
+      }
+    });
+
+    // ── Initialise the AI Debugger Tutor FAB (bottom-right slide panel) ──
+    createTutorFAB(app.serviceManager.serverSettings);
+
+    // ═══════════════════════════════════════════════════════════
+    // AUTO-TRIGGER: Fire the Tutor immediately when any cell fails
+    // No click required — the moment a cell produces an error,
+    // the Tutor panel opens and explains it automatically.
+    // ═══════════════════════════════════════════════════════════
+    NotebookActions.executed.connect((_, args) => {
+      const { cell, success } = args;
+      if (success) return; // only handle failures
+
+      setTimeout(() => {
+        const error = captureActiveError(cell as NotebookCell);
+        if (error) {
+          _lastCapturedError = error;
+          void loadTutorExplanation(
+            {
+              error_type: error.error_type,
+              error_message: error.error_message,
+              traceback: error.traceback,
+              code: error.code,
+            },
+            app.serviceManager.serverSettings
+          );
+        }
+      }, 75);
+    });
+
+    // ═══════════════════════════════════════════════════════════
+    // LEFT SIDEBAR — Dataset X-Ray Panel
+    // ═══════════════════════════════════════════════════════════
+    const xrayWidget = new Widget();
+    xrayWidget.id = 'mm-dataset-xray-panel';
+    xrayWidget.title.caption = 'Dataset X-Ray';
+    xrayWidget.title.iconClass = 'mm-sidebar-icon mm-icon-xray';
+    xrayWidget.addClass('mm-left-panel');
+
+    const xrayRoot = document.createElement('div');
+    xrayRoot.className = 'mm-left-panel-root';
+
+    // Panel header
+    const xrayHdr = document.createElement('div');
+    xrayHdr.className = 'mm-left-panel-header';
+    xrayHdr.innerHTML = `
+      <div class="mm-left-panel-title"><span>🔬</span> Dataset X-Ray</div>
+      <div class="mm-left-panel-sub">Upload a dataset to analyse</div>
+    `;
+
+    // File path input
+    const xrayInputWrap = document.createElement('div');
+    xrayInputWrap.className = 'mm-left-panel-input-wrap';
+    const xrayInput = document.createElement('input');
+    xrayInput.type = 'text';
+    xrayInput.placeholder = 'e.g. /path/to/data.csv';
+    xrayInput.className = 'mm-left-panel-input';
+    const xrayBtn = document.createElement('button');
+    xrayBtn.type = 'button';
+    xrayBtn.className = 'mm-left-panel-btn mm-btn-primary';
+    xrayBtn.innerHTML = '🔍 Analyse';
+    xrayInputWrap.append(xrayInput, xrayBtn);
+
+    const xrayNote = document.createElement('div');
+    xrayNote.className = 'mm-left-panel-note';
+    xrayNote.textContent = 'Tip: The path auto-fills from your open notebook cell.';
+
+    const xrayContent = document.createElement('div');
+    xrayContent.className = 'mm-left-panel-content';
+
+    xrayBtn.addEventListener('click', () => {
+      const fp = xrayInput.value.trim();
+      if (!fp) {
+        xrayContent.innerHTML = '<div class="mm-left-empty">⚠️ Please enter a file path.</div>';
+        return;
+      }
+      void loadAndRenderDatasetXRay(xrayContent, fp, app.serviceManager.serverSettings);
+    });
+
+    // Auto-fill input from active cell code
+    notebooks.activeCellChanged.connect(() => {
+      const cell = notebooks.activeCell;
+      if (!cell || !isCodeCellModel(cell.model)) return;
+      const src = cell.model.toJSON().source;
+      const code = Array.isArray(src) ? src.join('') : src;
+      const match = code.match(/['"]((?:[^'"]+)\.(?:csv|xlsx|xls|json))['"]/);
+      if (match) {
+        const filename = match[1];
+        const nb = notebooks.currentWidget;
+        if (nb) {
+          const nbPath = nb.context.path;
+          const dir = nbPath.includes('/') ? nbPath.substring(0, nbPath.lastIndexOf('/')) : '';
+          const resolved = dir ? `${dir}/${filename}` : filename;
+          xrayInput.value = resolved;
+          prepInput.value = resolved;
+        }
+      }
+    });
+
+    xrayRoot.append(xrayHdr, xrayInputWrap, xrayNote, xrayContent);
+    xrayWidget.node.appendChild(xrayRoot);
+    app.shell.add(xrayWidget, 'left', { rank: 300 });
+
+    // ═══════════════════════════════════════════════════════════
+    // LEFT SIDEBAR — Smart Preprocessing Adviser Panel
+    // ═══════════════════════════════════════════════════════════
+    const prepWidget = new Widget();
+    prepWidget.id = 'mm-preprocessing-panel';
+    prepWidget.title.caption = 'Smart Preprocessing Adviser';
+    prepWidget.title.iconClass = 'mm-sidebar-icon mm-icon-prep';
+    prepWidget.addClass('mm-left-panel');
+
+    const prepRoot = document.createElement('div');
+    prepRoot.className = 'mm-left-panel-root';
+
+    const prepHdr = document.createElement('div');
+    prepHdr.className = 'mm-left-panel-header';
+    prepHdr.innerHTML = `
+      <div class="mm-left-panel-title"><span>🧠</span> Preprocessing Adviser 2.0</div>
+      <div class="mm-left-panel-sub">Smart preprocessing recommendations</div>
+    `;
+
+    const prepInputWrap = document.createElement('div');
+    prepInputWrap.className = 'mm-left-panel-input-wrap';
+    const prepInput = document.createElement('input');
+    prepInput.type = 'text';
+    prepInput.placeholder = 'e.g. /path/to/data.csv';
+    prepInput.className = 'mm-left-panel-input';
+
+    // Level selector
+    const prepLevelWrap = document.createElement('div');
+    prepLevelWrap.className = 'mm-left-level-row';
+    let _leftPrepLevel: 'basic' | 'medium' | 'advanced' = 'basic';
+    const levelBtns: HTMLButtonElement[] = [];
+    (['basic', 'medium', 'advanced'] as const).forEach(lvl => {
+      const lb = document.createElement('button');
+      lb.type = 'button';
+      lb.className = `mm-level-btn${lvl === 'basic' ? ' active' : ''}`;
+      lb.textContent = lvl.charAt(0).toUpperCase() + lvl.slice(1);
+      lb.addEventListener('click', () => {
+        _leftPrepLevel = lvl;
+        levelBtns.forEach(b => b.classList.remove('active'));
+        lb.classList.add('active');
+      });
+      levelBtns.push(lb);
+      prepLevelWrap.appendChild(lb);
+    });
+
+    const prepBtn = document.createElement('button');
+    prepBtn.type = 'button';
+    prepBtn.className = 'mm-left-panel-btn mm-btn-primary';
+    prepBtn.innerHTML = '🧠 Analyse';
+    prepInputWrap.append(prepInput, prepBtn);
+
+    const prepContent = document.createElement('div');
+    prepContent.className = 'mm-left-panel-content';
+
+    prepBtn.addEventListener('click', () => {
+      const fp = prepInput.value.trim();
+      if (!fp) {
+        prepContent.innerHTML = '<div class="mm-left-empty">⚠️ Please enter a file path.</div>';
+        return;
+      }
+      void loadAndRenderPreprocessingAdviser(
+        prepContent, fp, _leftPrepLevel,
+        app.serviceManager.serverSettings,
+        (lvl) => {
+          _leftPrepLevel = lvl;
+          levelBtns.forEach(b => b.classList.remove('active'));
+          levelBtns.find(b => b.textContent?.toLowerCase() === lvl)?.classList.add('active');
+          void loadAndRenderPreprocessingAdviser(
+            prepContent, fp, lvl,
+            app.serviceManager.serverSettings,
+            () => { /* no-op */ }
+          );
+        }
+      );
+    });
+
+    const prepNote = document.createElement('div');
+    prepNote.className = 'mm-left-panel-note';
+    prepNote.textContent = 'Tip: Path auto-fills from notebook cell code.';
+
+    prepRoot.append(prepHdr, prepInputWrap, prepLevelWrap, prepNote, prepContent);
+    prepWidget.node.appendChild(prepRoot);
+    app.shell.add(prepWidget, 'left', { rank: 301 });
+
+    // ═══════════════════════════════════════════════════════════
+    // LEFT SIDEBAR — Model Visualization Lab button
+    // ═══════════════════════════════════════════════════════════
+    const labWidget = new Widget();
+    labWidget.id = 'mm-model-lab-sidebar';
+    labWidget.title.caption = 'Model Visualization Lab';
+    labWidget.title.iconClass = 'mm-sidebar-icon mm-icon-lab';
+    labWidget.addClass('mm-left-panel');
+
+    const labRoot = document.createElement('div');
+    labRoot.className = 'mm-left-panel-root';
+    labRoot.innerHTML = `
+      <div class="mm-left-panel-header">
+        <div class="mm-left-panel-title"><span>⚗️</span> Model Visualization Lab</div>
+        <div class="mm-left-panel-sub">Interactive ML model visualizations</div>
+      </div>
+    `;
+
+    const modelsInfo = [
+      { icon: '⬇️', name: 'Gradient Descent', cat: 'Optimization', ready: true,
+        desc: 'Watch a Linear Regression model learn step by step.' },
+      { icon: '🌳', name: 'Decision Tree', cat: 'Classification', ready: false,
+        desc: 'Visualize how a tree splits data at each node.' },
+      { icon: '🔵', name: 'k-Nearest Neighbours', cat: 'Classification', ready: false,
+        desc: 'See how nearby points determine a prediction.' },
+      { icon: '🔮', name: 'K-Means Clustering', cat: 'Clustering', ready: false,
+        desc: 'Watch centroids converge to cluster centres.' },
+      { icon: '📐', name: 'PCA', cat: 'Dim Reduction', ready: false,
+        desc: 'Project high-dimensional data onto principal components.' },
+    ];
+
+    modelsInfo.forEach(m => {
+      const card = document.createElement('div');
+      card.className = `mm-model-card${m.ready ? '' : ' mm-model-soon'}`;
+      card.innerHTML = `
+        <div class="mm-model-card-top">
+          <span class="mm-model-icon">${m.icon}</span>
+          <div>
+            <div class="mm-model-name">${m.name} ${!m.ready ? '<span class="mm-soon-tag">SOON</span>' : ''}</div>
+            <div class="mm-model-cat">${m.cat}</div>
+          </div>
+        </div>
+        <div class="mm-model-desc">${m.desc}</div>
+      `;
+      if (m.ready) {
+        const openBtn = document.createElement('button');
+        openBtn.type = 'button';
+        openBtn.className = 'mm-left-panel-btn mm-btn-primary';
+        openBtn.style.marginTop = '8px';
+        openBtn.textContent = '▶ Open Visualizer';
+        openBtn.addEventListener('click', openModelVisualizationLab);
+        card.appendChild(openBtn);
+      }
+      labRoot.appendChild(card);
+    });
+
+    labWidget.node.appendChild(labRoot);
+    app.shell.add(labWidget, 'left', { rank: 302 });
+
+    // ─── Inject CSS for all left panels ───
+    if (!document.getElementById('mm-left-panel-styles')) {
+      const s = document.createElement('style');
+      s.id = 'mm-left-panel-styles';
+      s.textContent = `
+        /* Sidebar icon SVG stubs */
+        .mm-sidebar-icon { background-size: 16px; background-repeat: no-repeat; background-position: center; }
+        .mm-icon-xray::before  { content: '🔬'; font-size:16px; }
+        .mm-icon-prep::before  { content: '🧠'; font-size:16px; }
+        .mm-icon-lab::before   { content: '⚗️'; font-size:16px; }
+
+        .mm-left-panel { overflow: hidden; }
+        .mm-left-panel-root {
+          height: 100%; overflow-y: auto; padding: 0;
+          background: #0f172a; color: #e2e8f0;
+          font-family: 'Segoe UI', system-ui, sans-serif;
+          display: flex; flex-direction: column;
+        }
+
+        .mm-left-panel-header {
+          padding: 14px 14px 10px;
+          background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+          border-bottom: 1px solid rgba(167,139,250,.2);
+          flex-shrink: 0;
+        }
+        .mm-left-panel-title {
+          font-size: 13px; font-weight: 800; display: flex; align-items: center; gap: 6px;
+          background: linear-gradient(90deg, #a78bfa, #818cf8);
+          -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .mm-left-panel-sub { font-size: 10px; opacity: .5; margin-top: 3px; }
+
+        .mm-left-panel-input-wrap {
+          padding: 10px 12px 6px; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0;
+        }
+        .mm-left-panel-input {
+          background: #1e293b; border: 1px solid rgba(255,255,255,.12);
+          color: #e2e8f0; padding: 7px 10px; border-radius: 7px; font-size: 11px;
+          outline: none; width: 100%;
+        }
+        .mm-left-panel-input:focus { border-color: #a78bfa; }
+        .mm-left-panel-note {
+          padding: 0 12px 6px; font-size: 10px; opacity: .4; flex-shrink: 0;
+        }
+        .mm-left-panel-btn {
+          padding: 8px 14px; border-radius: 7px; border: none; cursor: pointer;
+          font-size: 12px; font-weight: 700; width: 100%; transition: all .15s;
+        }
+        .mm-btn-primary { background: linear-gradient(135deg,#7c3aed,#4f46e5); color:#fff; }
+        .mm-btn-primary:hover { opacity:.85; transform:translateY(-1px); }
+
+        .mm-left-level-row {
+          display: flex; gap: 5px; padding: 4px 12px 8px; flex-shrink: 0;
+        }
+        .mm-level-btn {
+          flex: 1; padding: 4px 6px; border-radius: 6px; border: 1px solid rgba(255,255,255,.12);
+          background: transparent; color: #94a3b8; font-size: 10px; cursor: pointer;
+          transition: all .15s;
+        }
+        .mm-level-btn.active {
+          border-color: #a78bfa; background: rgba(167,139,250,.18); color: #a78bfa; font-weight: 700;
+        }
+
+        .mm-left-panel-content {
+          flex: 1; overflow-y: auto; padding: 8px 10px;
+        }
+        .mm-left-empty {
+          text-align: center; opacity: .45; font-size: 12px; padding: 20px 0;
+        }
+
+        /* Model Lab cards */
+        .mm-model-card {
+          margin: 8px 10px; border: 1px solid rgba(255,255,255,.08);
+          border-radius: 10px; padding: 12px;
+          background: rgba(255,255,255,.03); transition: all .2s;
+        }
+        .mm-model-card:not(.mm-model-soon):hover {
+          border-color: rgba(167,139,250,.4); background: rgba(167,139,250,.07);
+        }
+        .mm-model-soon { opacity: .45; }
+        .mm-model-card-top {
+          display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px;
+        }
+        .mm-model-icon { font-size: 18px; }
+        .mm-model-name { font-size: 12px; font-weight: 700; }
+        .mm-model-cat { font-size: 9px; opacity: .5; letter-spacing:.5px; margin-top: 2px; }
+        .mm-model-desc { font-size: 11px; opacity: .65; line-height: 1.4; }
+        .mm-soon-tag {
+          display: inline-block; font-size: 8px; padding: 1px 5px; border-radius: 99px;
+          background: rgba(100,116,139,.2); color: #94a3b8; vertical-align: middle; margin-left: 4px;
+        }
+      `;
+      document.head.appendChild(s);
+    }
+
     app.commands.addCommand(COMMAND_ID, {
       label: 'Open Error Assistant',
       execute: () => {
