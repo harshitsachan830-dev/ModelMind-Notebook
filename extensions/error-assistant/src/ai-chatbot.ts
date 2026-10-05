@@ -1011,6 +1011,7 @@ export function createAIChatbotPanel(
         appendMessage(replyMsg);
         conversationHistory.push({ role: 'assistant', content: result.reply });
       } else {
+        conversationHistory.pop(); // Remove un-replied user message on error
         let errText = 'I could not respond right now.';
         if (result.status === 'model_missing') {
           errText = '🦙 Ollama model not found. Please install it first via the AI Assistant.';
@@ -1019,7 +1020,7 @@ export function createAIChatbotPanel(
         } else if (result.status === 'gemini_unconfigured') {
           errText = '✨ Gemini API key not configured. Set GEMINI_API_KEY environment variable.';
         } else if (result.status === 'gemini_unavailable') {
-          errText = '✨ Gemini is temporarily unavailable. Try again or switch to Ollama.';
+          errText = result.message ? `✨ ${result.message}` : '✨ Gemini is temporarily unavailable. Try again or switch to Ollama.';
         } else if (result.message) {
           errText = result.message;
         }
@@ -1034,6 +1035,7 @@ export function createAIChatbotPanel(
       }
     } catch (e) {
       typingEl.remove();
+      conversationHistory.pop(); // Remove un-replied user message on error
       const errMsg: ChatMessage = {
         role: 'assistant',
         content: '⚠️ Network error — could not reach the backend. Is the platform running?',

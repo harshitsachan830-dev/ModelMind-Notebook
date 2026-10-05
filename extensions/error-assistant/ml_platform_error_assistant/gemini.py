@@ -11,7 +11,8 @@ from .fix_validation import is_complete_cell_fix
 from .ollama import _build_fix_hint, validate_fix_response
 
 GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-GEMINI_DEFAULT_MODEL = "gemini-2.5-flash"
+GEMINI_DEFAULT_MODEL = "gemini-3.8-flash"
+GEMINI_FALLBACK_MODELS = ("gemini-3.5-flash", "gemini-flash-latest")
 GEMINI_TIMEOUT_SECONDS = 60.0
 GEMINI_MAX_REQUEST_BYTES = 65_536
 GEMINI_MAX_RESPONSE_BYTES = 32_768
@@ -102,31 +103,53 @@ async def suggest_fix_with_gemini(error, notebook_context="", client=None):
     owns_client = client is None
     if owns_client:
         client = create_http_client()
-    request = HTTPRequest(
-        f"{GEMINI_API_BASE_URL}/models/{model_id}:generateContent",
-        method="POST",
-        body=body,
-        headers={
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "x-goog-api-key": api_key,
-        },
-        connect_timeout=3.0,
-        request_timeout=GEMINI_TIMEOUT_SECONDS,
-        follow_redirects=False,
-        ssl_options=ssl.create_default_context(cafile=certifi.where()),
-    )
+
+    models_to_try = [model_id]
+    for fb in GEMINI_FALLBACK_MODELS:
+        if fb not in models_to_try:
+            models_to_try.append(fb)
+
+    response = None
+    successful_model = model_id
+    last_error_message = None
+
     try:
-        try:
-            response = await client.fetch(request, raise_error=False)
-        except (HTTPError, OSError, TimeoutError):
-            return {"status": "gemini_unavailable", "model_id": model_id}
+        for m_id in models_to_try:
+            request = HTTPRequest(
+                f"{GEMINI_API_BASE_URL}/models/{m_id}:generateContent",
+                method="POST",
+                body=body,
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "x-goog-api-key": api_key,
+                },
+                connect_timeout=3.0,
+                request_timeout=GEMINI_TIMEOUT_SECONDS,
+                follow_redirects=False,
+                ssl_options=ssl.create_default_context(cafile=certifi.where()),
+            )
+            try:
+                resp = await client.fetch(request, raise_error=False)
+                if resp.code == 200 and len(resp.body) <= GEMINI_MAX_RESPONSE_BYTES:
+                    response = resp
+                    successful_model = m_id
+                    break
+                else:
+                    try:
+                        err_json = json.loads(resp.body)
+                        last_error_message = err_json.get("error", {}).get("message")
+                    except Exception:
+                        pass
+            except (HTTPError, OSError, TimeoutError):
+                pass
     finally:
         if owns_client:
             client.close()
 
-    if response.code != 200 or len(response.body) > GEMINI_MAX_RESPONSE_BYTES:
-        return {"status": "gemini_unavailable", "model_id": model_id}
+    if response is None:
+        msg = last_error_message or "Gemini is temporarily unavailable."
+        return {"status": "gemini_unavailable", "message": msg, "model_id": model_id}
 
     try:
         payload = json.loads(response.body)
@@ -138,15 +161,15 @@ async def suggest_fix_with_gemini(error, notebook_context="", client=None):
             raise ValueError("Gemini returned invalid or oversized content.")
         fix = validate_fix_response(json.loads(text))
     except (IndexError, KeyError, TypeError, json.JSONDecodeError, UnicodeDecodeError, ValueError):
-        return {"status": "invalid_gemini_response", "model_id": model_id}
+        return {"status": "invalid_gemini_response", "model_id": successful_model}
 
     if not is_complete_cell_fix(error["code"], fix["candidate_code"]):
-        return {"status": "incomplete_gemini_response", "model_id": model_id}
+        return {"status": "incomplete_gemini_response", "model_id": successful_model}
 
     return {
         "status": "suggested",
         "provider": "gemini",
-        "model_id": model_id,
+        "model_id": successful_model,
         **fix,
     }
 
@@ -206,6 +229,12 @@ async def chat_with_gemini(message, history=None, context=None, client=None):
             elif role == "assistant" and isinstance(content, str) and content.strip():
                 contents.append({"role": "model", "parts": [{"text": content[:4000]}]})
 
+    # Ensure the latest message is in contents
+    message_clean = message.strip()[:4000]
+    if message_clean:
+        if not contents or contents[-1].get("role") != "user" or contents[-1].get("parts", [{}])[0].get("text") != message_clean:
+            contents.append({"role": "user", "parts": [{"text": message_clean}]})
+
     body = json.dumps(
         {
             "systemInstruction": {"parts": [{"text": GEMINI_CHATBOT_SYSTEM}]},
@@ -224,32 +253,52 @@ async def chat_with_gemini(message, history=None, context=None, client=None):
     if owns_client:
         client = create_http_client()
 
-    request = HTTPRequest(
-        f"{GEMINI_API_BASE_URL}/models/{model_id}:generateContent",
-        method="POST",
-        body=body,
-        headers={
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "x-goog-api-key": api_key,
-        },
-        connect_timeout=3.0,
-        request_timeout=GEMINI_CHAT_TIMEOUT_SECONDS,
-        follow_redirects=False,
-        ssl_options=ssl.create_default_context(cafile=certifi.where()),
-    )
+    models_to_try = [model_id]
+    for fb in GEMINI_FALLBACK_MODELS:
+        if fb not in models_to_try:
+            models_to_try.append(fb)
+
+    response = None
+    successful_model = model_id
+    last_error_message = None
 
     try:
-        try:
-            response = await client.fetch(request, raise_error=False)
-        except (HTTPError, OSError, TimeoutError):
-            return {"status": "gemini_unavailable", "model_id": model_id}
+        for m_id in models_to_try:
+            request = HTTPRequest(
+                f"{GEMINI_API_BASE_URL}/models/{m_id}:generateContent",
+                method="POST",
+                body=body,
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "x-goog-api-key": api_key,
+                },
+                connect_timeout=3.0,
+                request_timeout=GEMINI_CHAT_TIMEOUT_SECONDS,
+                follow_redirects=False,
+                ssl_options=ssl.create_default_context(cafile=certifi.where()),
+            )
+            try:
+                resp = await client.fetch(request, raise_error=False)
+                if resp.code == 200 and len(resp.body) <= GEMINI_CHAT_MAX_RESPONSE_BYTES:
+                    response = resp
+                    successful_model = m_id
+                    break
+                else:
+                    try:
+                        err_json = json.loads(resp.body)
+                        last_error_message = err_json.get("error", {}).get("message")
+                    except Exception:
+                        pass
+            except (HTTPError, OSError, TimeoutError):
+                pass
     finally:
         if owns_client:
             client.close()
 
-    if response.code != 200 or len(response.body) > GEMINI_CHAT_MAX_RESPONSE_BYTES:
-        return {"status": "gemini_unavailable", "model_id": model_id}
+    if response is None:
+        msg = last_error_message or "Gemini is currently experiencing high demand. Try again or switch to Ollama."
+        return {"status": "gemini_unavailable", "message": msg, "model_id": model_id}
 
     try:
         payload = json.loads(response.body)
@@ -262,11 +311,11 @@ async def chat_with_gemini(message, history=None, context=None, client=None):
         if len(text.encode("utf-8")) > GEMINI_CHAT_MAX_CONTENT_BYTES:
             text = text[:GEMINI_CHAT_MAX_CONTENT_BYTES // 2]
     except (IndexError, KeyError, TypeError, json.JSONDecodeError, UnicodeDecodeError, ValueError):
-        return {"status": "invalid_gemini_response", "model_id": model_id}
+        return {"status": "invalid_gemini_response", "model_id": successful_model}
 
     return {
         "status": "replied",
         "provider": "gemini",
-        "model_id": model_id,
+        "model_id": successful_model,
         "reply": text.strip(),
     }

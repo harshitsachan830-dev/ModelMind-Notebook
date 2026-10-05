@@ -707,6 +707,12 @@ async def chat_with_ollama(message, history=None, context=None, client=None):
             if role in {"user", "assistant"} and isinstance(content, str) and content.strip():
                 chat_messages.append({"role": role, "content": content[:4000]})
 
+    # Ensure the latest message is in chat_messages
+    message_clean = message.strip()[:4000]
+    if message_clean:
+        if not chat_messages or chat_messages[-1].get("role") != "user" or chat_messages[-1].get("content") != message_clean:
+            chat_messages.append({"role": "user", "content": message_clean})
+
     body = json.dumps(
         {
             "model": model_id,
