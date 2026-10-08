@@ -28,10 +28,29 @@ from .ollama import (
     suggest_fix_with_ollama,
     chat_with_ollama,
 )
-from .dataset_intelligence import (
+from .dataset import (
     analyze_dataset,
+    analyze_target,
+    analyze_feature,
+)
+from .preprocessing_advisor import (
     analyze_preprocessing,
+)
+from .preprocessing_preview import (
+    preview_preprocessing,
+)
+from .preprocessing_apply import (
+    apply_preprocessing,
+    undo_preprocessing,
+)
+from .ml_mistake_detector import (
+    analyze_ml_mistakes,
+)
+from .dataset_intelligence import (
     analyze_error_for_tutor,
+)
+from .model_recommender import (
+    recommend_models,
 )
 
 MAX_CAPTURE_BYTES = 40_000
@@ -376,6 +395,26 @@ class ValidateFixHandler(APIHandler):
 
 
 # =========================================================
+# PATH RESOLVER HELPER
+# =========================================================
+
+def _resolve_dataset_path(file_path: str) -> pathlib.Path:
+    p = pathlib.Path(file_path)
+    if p.exists() and p.is_file():
+        return p
+    # Try current working directory
+    cwd_p = pathlib.Path.cwd() / file_path
+    if cwd_p.exists() and cwd_p.is_file():
+        return cwd_p
+    # Try stripping leading slashes
+    clean_rel = file_path.lstrip("/\\")
+    cwd_clean = pathlib.Path.cwd() / clean_rel
+    if cwd_clean.exists() and cwd_clean.is_file():
+        return cwd_clean
+    return p
+
+
+# =========================================================
 # DATASET X-RAY HANDLER
 # =========================================================
 
@@ -393,7 +432,7 @@ class DatasetXRayHandler(APIHandler):
             self.finish(json.dumps({"error": str(exc)}))
             return
 
-        path = pathlib.Path(file_path)
+        path = _resolve_dataset_path(file_path.strip())
         if not path.exists() or not path.is_file():
             self.set_status(404)
             self.finish(json.dumps({"error": "Dataset file not found.", "path": str(path)}))
@@ -404,6 +443,88 @@ class DatasetXRayHandler(APIHandler):
         except Exception as exc:
             self.set_status(500)
             self.finish(json.dumps({"error": str(exc)}))
+            return
+
+        self.finish(json.dumps(result))
+
+
+# =========================================================
+# TARGET INTELLIGENCE HANDLER
+# =========================================================
+
+class DatasetTargetHandler(APIHandler):
+    @tornado.web.authenticated
+    def post(self):
+        self.set_header("Content-Type", "application/json")
+        try:
+            payload = json.loads(self.request.body)
+            file_path = payload.get("file_path", "")
+            target_column = payload.get("target_column", "")
+            if not isinstance(file_path, str) or not file_path.strip():
+                raise ValueError("file_path must be a non-empty string.")
+            if not isinstance(target_column, str) or not target_column.strip():
+                raise ValueError("target_column must be a non-empty string.")
+        except (json.JSONDecodeError, ValueError) as exc:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+
+        path = _resolve_dataset_path(file_path.strip())
+        if not path.exists() or not path.is_file():
+            self.set_status(404)
+            self.finish(json.dumps({"error": "Dataset file not found.", "path": str(path)}))
+            return
+
+        try:
+            result = analyze_target(path, target_column.strip())
+        except ValueError as exc:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+        except Exception as exc:
+            self.set_status(500)
+            self.finish(json.dumps({"error": f"Target analysis failed: {str(exc)}"}))
+            return
+
+        self.finish(json.dumps(result))
+
+
+# =========================================================
+# FEATURE INTELLIGENCE HANDLER
+# =========================================================
+
+class DatasetFeatureHandler(APIHandler):
+    @tornado.web.authenticated
+    def post(self):
+        self.set_header("Content-Type", "application/json")
+        try:
+            payload = json.loads(self.request.body)
+            file_path = payload.get("file_path", "")
+            feature_column = payload.get("feature_column", "")
+            if not isinstance(file_path, str) or not file_path.strip():
+                raise ValueError("file_path must be a non-empty string.")
+            if not isinstance(feature_column, str) or not feature_column.strip():
+                raise ValueError("feature_column must be a non-empty string.")
+        except (json.JSONDecodeError, ValueError) as exc:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+
+        path = _resolve_dataset_path(file_path.strip())
+        if not path.exists() or not path.is_file():
+            self.set_status(404)
+            self.finish(json.dumps({"error": "Dataset file not found.", "path": str(path)}))
+            return
+
+        try:
+            result = analyze_feature(path, feature_column.strip())
+        except ValueError as exc:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+        except Exception as exc:
+            self.set_status(500)
+            self.finish(json.dumps({"error": f"Feature analysis failed: {str(exc)}"}))
             return
 
         self.finish(json.dumps(result))
@@ -430,7 +551,7 @@ class PreprocessingAdviserHandler(APIHandler):
             self.finish(json.dumps({"error": str(exc)}))
             return
 
-        path = pathlib.Path(file_path)
+        path = _resolve_dataset_path(file_path.strip())
         if not path.exists() or not path.is_file():
             self.set_status(404)
             self.finish(json.dumps({"error": "Dataset file not found.", "path": str(path)}))
@@ -441,6 +562,168 @@ class PreprocessingAdviserHandler(APIHandler):
         except Exception as exc:
             self.set_status(500)
             self.finish(json.dumps({"error": str(exc)}))
+            return
+
+        self.finish(json.dumps(result))
+
+
+# =========================================================
+# PREPROCESSING PREVIEW HANDLER
+# =========================================================
+
+class PreprocessingPreviewHandler(APIHandler):
+    @tornado.web.authenticated
+    def post(self):
+        self.set_header("Content-Type", "application/json")
+        try:
+            payload = json.loads(self.request.body)
+            file_path = payload.get("file_path", "")
+            feature = payload.get("feature", "")
+            strategy = payload.get("strategy", "")
+            if not isinstance(file_path, str) or not file_path.strip():
+                raise ValueError("file_path must be a non-empty string.")
+            if not isinstance(feature, str) or not feature.strip():
+                raise ValueError("feature must be a non-empty string.")
+            if not isinstance(strategy, str) or not strategy.strip():
+                raise ValueError("strategy must be a non-empty string.")
+        except (json.JSONDecodeError, ValueError) as exc:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+
+        path = _resolve_dataset_path(file_path.strip())
+        if not path.exists() or not path.is_file():
+            self.set_status(404)
+            self.finish(json.dumps({"error": "Dataset file not found.", "path": str(path)}))
+            return
+
+        try:
+            result = preview_preprocessing(path, feature=feature.strip(), strategy=strategy.strip())
+        except ValueError as exc:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+        except Exception as exc:
+            self.set_status(500)
+            self.finish(json.dumps({"error": f"Preview failed: {str(exc)}"}))
+            return
+
+        self.finish(json.dumps(result))
+
+
+# =========================================================
+# PREPROCESSING APPLY HANDLER
+# =========================================================
+
+class PreprocessingApplyHandler(APIHandler):
+    @tornado.web.authenticated
+    def post(self):
+        self.set_header("Content-Type", "application/json")
+        try:
+            payload = json.loads(self.request.body)
+            file_path = payload.get("file_path", "")
+            feature = payload.get("feature", "")
+            strategy = payload.get("strategy", "")
+            if not isinstance(file_path, str) or not file_path.strip():
+                raise ValueError("file_path must be a non-empty string.")
+            if not isinstance(feature, str) or not feature.strip():
+                raise ValueError("feature must be a non-empty string.")
+            if not isinstance(strategy, str) or not strategy.strip():
+                raise ValueError("strategy must be a non-empty string.")
+        except (json.JSONDecodeError, ValueError) as exc:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+
+        path = _resolve_dataset_path(file_path.strip())
+        if not path.exists() or not path.is_file():
+            self.set_status(404)
+            self.finish(json.dumps({"error": "Dataset file not found.", "path": str(path)}))
+            return
+
+        try:
+            result = apply_preprocessing(path, feature=feature.strip(), strategy=strategy.strip())
+            # Include fresh dataset analysis
+            try:
+                result["dataset"] = analyze_dataset(path)
+            except Exception:
+                pass
+        except ValueError as exc:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+        except Exception as exc:
+            self.set_status(500)
+            self.finish(json.dumps({"error": f"Apply failed: {str(exc)}"}))
+            return
+
+        self.finish(json.dumps(result))
+
+
+# =========================================================
+# PREPROCESSING UNDO HANDLER
+# =========================================================
+
+class PreprocessingUndoHandler(APIHandler):
+    @tornado.web.authenticated
+    def post(self):
+        self.set_header("Content-Type", "application/json")
+        try:
+            payload = json.loads(self.request.body)
+            file_path = payload.get("file_path", "")
+            if not isinstance(file_path, str) or not file_path.strip():
+                raise ValueError("file_path must be a non-empty string.")
+        except (json.JSONDecodeError, ValueError) as exc:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+
+        path = _resolve_dataset_path(file_path.strip())
+        if not path.exists() or not path.is_file():
+            self.set_status(404)
+            self.finish(json.dumps({"error": "Dataset file not found.", "path": str(path)}))
+            return
+
+        try:
+            result = undo_preprocessing(path)
+            try:
+                result["dataset"] = analyze_dataset(path)
+            except Exception:
+                pass
+        except ValueError as exc:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+        except Exception as exc:
+            self.set_status(500)
+            self.finish(json.dumps({"error": f"Undo failed: {str(exc)}"}))
+            return
+
+        self.finish(json.dumps(result))
+
+
+# =========================================================
+# ML MISTAKE DETECTOR HANDLER
+# =========================================================
+
+class MLMistakeCheckHandler(APIHandler):
+    @tornado.web.authenticated
+    def post(self):
+        self.set_header("Content-Type", "application/json")
+        try:
+            payload = json.loads(self.request.body)
+            code = str(payload.get("code", ""))[:50000]
+            level = str(payload.get("level", "Basic"))[:30]
+        except (json.JSONDecodeError, ValueError) as exc:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+
+        try:
+            result = analyze_ml_mistakes(code=code, level=level)
+        except Exception as exc:
+            self.set_status(500)
+            self.finish(json.dumps({"error": f"ML check failed: {str(exc)}"}))
             return
 
         self.finish(json.dumps(result))
@@ -540,6 +823,45 @@ class DebuggerTutorHandler(APIHandler):
         self.finish(json.dumps(result))
 
 
+# =========================================================
+# MODEL RECOMMENDER HANDLER
+# =========================================================
+
+class ModelRecommendHandler(APIHandler):
+    @tornado.web.authenticated
+    def post(self):
+        self.set_header("Content-Type", "application/json")
+        try:
+            payload = json.loads(self.request.body)
+            if not isinstance(payload, dict):
+                raise ValueError("Request body must be a JSON object.")
+            file_path = str(payload.get("file_path", "")).strip()
+            if not file_path:
+                raise ValueError("file_path is required.")
+            target_col = payload.get("target_col") or None
+            if target_col is not None:
+                target_col = str(target_col).strip() or None
+        except (json.JSONDecodeError, ValueError) as exc:
+            self.set_status(400)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+
+        path = pathlib.Path(file_path)
+        if not path.exists():
+            self.set_status(404)
+            self.finish(json.dumps({"error": f"File not found: {file_path}"}))
+            return
+
+        try:
+            result = recommend_models(path, target_col=target_col)
+        except Exception as exc:
+            self.set_status(500)
+            self.finish(json.dumps({"error": str(exc)}))
+            return
+
+        self.finish(json.dumps(result))
+
+
 def setup_route_handlers(web_app):
     host_pattern = ".*$"
     base_url = web_app.settings["base_url"]
@@ -556,9 +878,16 @@ def setup_route_handlers(web_app):
 
     # New routes
     dataset_xray_route_pattern = url_path_join(base_url, "api", "dataset", "xray")
+    dataset_target_route_pattern = url_path_join(base_url, "api", "dataset", "target")
+    dataset_feature_route_pattern = url_path_join(base_url, "api", "dataset", "feature")
     preprocessing_adviser_route_pattern = url_path_join(base_url, "api", "dataset", "preprocessing")
+    preprocessing_preview_route_pattern = url_path_join(base_url, "api", "dataset", "preprocessing", "preview")
+    preprocessing_apply_route_pattern = url_path_join(base_url, "api", "dataset", "preprocessing", "apply")
+    preprocessing_undo_route_pattern = url_path_join(base_url, "api", "dataset", "preprocessing", "undo")
+    ml_check_route_pattern = url_path_join(base_url, "api", "ai", "ml-check")
     debugger_tutor_route_pattern = url_path_join(base_url, "api", "ai", "tutor")
     ai_chat_route_pattern = url_path_join(base_url, "api", "ai", "chat")
+    model_recommend_route_pattern = url_path_join(base_url, "api", "dataset", "model-recommend")
 
     handlers = [
         (health_route_pattern, HealthHandler),
@@ -570,11 +899,18 @@ def setup_route_handlers(web_app):
         (suggest_fix_route_pattern, SuggestFixHandler),
         (code_help_route_pattern, CodeHelpHandler),
         (validate_fix_route_pattern, ValidateFixHandler),
-        # ── New features ──
+        # ── Dataset & ML Intelligence features ──
         (dataset_xray_route_pattern, DatasetXRayHandler),
+        (dataset_target_route_pattern, DatasetTargetHandler),
+        (dataset_feature_route_pattern, DatasetFeatureHandler),
         (preprocessing_adviser_route_pattern, PreprocessingAdviserHandler),
+        (preprocessing_preview_route_pattern, PreprocessingPreviewHandler),
+        (preprocessing_apply_route_pattern, PreprocessingApplyHandler),
+        (preprocessing_undo_route_pattern, PreprocessingUndoHandler),
+        (ml_check_route_pattern, MLMistakeCheckHandler),
         (debugger_tutor_route_pattern, DebuggerTutorHandler),
         (ai_chat_route_pattern, AIChatHandler),
+        (model_recommend_route_pattern, ModelRecommendHandler),
     ]
 
     web_app.add_handlers(host_pattern, handlers)

@@ -6,6 +6,8 @@ VENV_DIR="${VENV_DIR:-$ROOT_DIR/.venv}"
 PORT="${PORT:-8899}"
 WORKSPACE="${WORKSPACE:-$ROOT_DIR}"
 ENV_FILE="$ROOT_DIR/.env"
+export JUPYTER_RUNTIME_DIR="${JUPYTER_RUNTIME_DIR:-$ROOT_DIR/.jupyter_runtime}"
+mkdir -p "$JUPYTER_RUNTIME_DIR"
 
 if [[ -f "$ENV_FILE" ]]; then
   while IFS='=' read -r key value || [[ -n "$key" ]]; do

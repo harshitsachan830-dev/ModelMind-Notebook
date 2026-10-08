@@ -18,6 +18,90 @@ async def test_health(jp_fetch):
     }
 
 
+async def test_dataset_target_analyzes_categorical_branch(jp_fetch, tmp_path):
+    dataset_path = tmp_path / "students.csv"
+    dataset_path.write_text(
+        "branch\nCSE\nCSE\nAI-ML\nCSE-AIML\n",
+        encoding="utf-8",
+    )
+
+    response = await jp_fetch(
+        "api",
+        "dataset",
+        "target",
+        method="POST",
+        body=json.dumps({
+            "file_path": str(dataset_path),
+            "target_column": "branch",
+        }),
+    )
+
+    assert response.code == 200
+    payload = json.loads(response.body)
+    assert payload["task"] == "classification"
+    assert payload["task_type"] == "Multiclass Classification"
+    assert payload["class_counts"] == {"CSE": 2, "AI-ML": 1, "CSE-AIML": 1}
+    assert payload["class_percentages"] == {
+        "CSE": 50.0,
+        "AI-ML": 25.0,
+        "CSE-AIML": 25.0,
+    }
+
+
+async def test_dataset_target_detects_numeric_binary_classification(
+    jp_fetch, tmp_path
+):
+    dataset_path = tmp_path / "promotions.csv"
+    dataset_path.write_text(
+        "promoted\n0\n1\n0\n1\n0\n1\n0\n1\n0\n1\n",
+        encoding="utf-8",
+    )
+
+    response = await jp_fetch(
+        "api",
+        "dataset",
+        "target",
+        method="POST",
+        body=json.dumps({
+            "file_path": str(dataset_path),
+            "target_column": "promoted",
+        }),
+    )
+
+    assert response.code == 200
+    payload = json.loads(response.body)
+    assert payload["task"] == "classification"
+    assert payload["task_type"] == "Binary Classification"
+    assert payload["class_counts"] == {"0": 5, "1": 5}
+
+
+def test_model_recommendation_encodes_categorical_target(tmp_path):
+    from ml_platform_error_assistant.model_recommender import recommend_models
+
+    dataset_path = tmp_path / "students.csv"
+    dataset_path.write_text(
+        "hours,branch\n1,CSE\n2,AI-ML\n3,CSE\n4,AI-ML\n"
+        "5,CSE\n6,AI-ML\n7,CSE\n8,AI-ML\n"
+        "9,CSE\n10,AI-ML\n11,CSE\n12,AI-ML\n"
+        "13,CSE\n14,AI-ML\n15,CSE\n16,AI-ML\n"
+        "17,CSE\n18,AI-ML\n19,CSE\n20,AI-ML\n",
+        encoding="utf-8",
+    )
+
+    result = recommend_models(dataset_path, target_col="branch")
+
+    assert result["handled"] is True
+    assert result["target_is_categorical"] is True
+    assert result["target_encoding"] == "LabelEncoder"
+    assert result["models"]
+    for model in result["models"]:
+        code = model["code"]
+        compile(code, f"generated:{model['id']}", "exec")
+        assert "target_encoder.fit_transform(y)" in code
+        assert "target_encoder.inverse_transform" in code
+        assert "Target label encoding:" in code
+
+
 async def test_error_capture_returns_normalized_payload(jp_fetch):
     error = {
         "cell_id": "cell-17",

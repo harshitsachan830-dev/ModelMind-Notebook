@@ -40,7 +40,16 @@ export async function requestAPI<T>(
   }
 
   if (!response.ok) {
-    throw new ServerConnection.ResponseError(response, data.message || data);
+    const message =
+      typeof data === 'string'
+        ? data
+        : data && typeof data === 'object'
+          ? data.message || data.error || response.statusText
+          : response.statusText;
+    throw new ServerConnection.ResponseError(
+      response,
+      typeof message === 'string' ? message : JSON.stringify(message)
+    );
   }
 
   return data;

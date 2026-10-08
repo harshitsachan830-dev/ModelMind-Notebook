@@ -1,0 +1,51 @@
+student_id,name,age,gender,city,branch,cgpa,weight,height,join_date,hostel,salary,projects,email
+1,Aarav Sharma,19.0,Male,Delhi,CSE,8.7,65 kg,175 cm,2026-01-12,Yes,45000,3.0,aarav@example.com
+2,Priya Singh,20.0,female,delhi,CSE,9.1,52,160,12/01/2026,yes,"52,000",5.0,priya@example.com
+3,Rahul Verma,21.0,M,Noida,CSE-AIML,7.4,78 kg,172 cm,2026/01/14,Y,38000,2.0,
+4,Sneha Gupta,19.0,F,Ghaziabad,AI-ML,,49 kg,158 cm,14-Jan-2026,No,,4.0,sneha@example.com
+5,Vikash Kumar,22.0,Male,KANPUR,CSE,6.8,,180 cm,15-01-2026,N,"35,000",1.0,vikash@example.com
+6,  Ananya Patel  ,20.0,Female,Noida,CSE,8.9,55kg,165cm,2026-01-16,Yes,62000,6.0,ananya@example.com
+7,Rohan Mehta,19.0,male,Delhi,CSE,7.2,91 kg,178 cm,16/01/26,YES,41000,3.0,
+8,Neha Jain,21.0,Female,Ghaziabad,CSE,8.3,60 kg,,2026-01-18,No,48000,,neha@example.com
+9,Aditya Roy,20.0,M,Delhi,CSE-AIML,9.8,72 kg,182 cm,18-01-2026,yes,75000,8.0,aditya@example.com
+10,Karan Malhotra,19.0,Male,Delhi ,CSE,-2.0,68 kg,176 cm,2026-01-20,Y,45000,3.0,karan@example.com
+11,Isha Kapoor,20.0,Female,Delhi,AI-ML,8.5,54 kg,162 cm,20/01/2026,No,55000,5.0,isha@example.com
+12,Mohit Singh,23.0,Male,Noida,CSE,7.9,110 kg,175 cm,2026-01-22,Yes,47000,4.0,mohit@example.com
+13,Pooja Yadav,19.0,female,Ghaziabad,CSE,8.1,51 kg,159 cm,22-Jan-2026,N,39000,2.0,pooja@example.com
+14,Aman Khan,20.0,Male,Delhi,CSE,7.6,70 kg,170 cm,2026-01-24,yes,42000,3.0,aman@example.com
+15,Simran Kaur,21.0,F,Noida,CSE,8.8,57 kg,164 cm,24/01/2026,No,"58,000",6.0,simran@example.com
+16,Dev Mishra,19.0,Male,Ghaziabad,CSE-AIML,7.1,N/A,169 cm,2026-01-26,Yes,36000,2.0,dev@example.com
+17,Tanya Bose,20.0,Female,Delhi,CSE,8.6,53 kg,161 cm,26-01-2026,yes,51000,5.0,tanya@example.com
+18,Arjun Das,21.0,Male,Noida,CSE,7.7,74 kg,177 cm,2026-01-28,No,44000,3.0,arjun@example.com
+19,Meera Shah,19.0,Female,Delhi,AI-ML,8.2,50 kg,157 cm,28/01/2026,N,46000,4.0,meera@example.com
+20,Sahil Jain,20.0,Male,Ghaziabad, CSE ,7.0,69 kg,174 cm,2026-01-30,Yes,,2.0,sahil@example.com
+21,Riya Sharma,19.0,female,Delhi,CSE,8.9,55 kg,163 cm,30-Jan-2026,YES,60000,7.0,riya@example.com
+22,Harsh Vardhan,22.0,Male,Noida,CSE,6.5,85 kg,181 cm,2026-02-01,No,33000,1.0,harsh@example.com
+23,Nitin,20.0,Male,Delhi,CSE,8.0,71 kg,176 cm,01/02/2026,Yes,"49,000",4.0,nitin@example.com
+24,Kriti,19.0,Female,Ghaziabad,CSE,8.4,58 kg,unknown,2026-02-03,No,53000,5.0,kriti@example.com
+25,Yash,20.0,M,Noida,CSE-AIML,7.8,73 kg,179 cm,03-02-2026,Y,47000,3.0,yash@example.com
+26,Neelam,21.0,Female,Delhi,CSE,,62 kg,166 cm,2026-02-05,yes,50000,4.0,neelam@example.com
+27,Varun,19.0,Male,Noida,CSE,8.7,67 kg,173 cm,05/02/2026,No,56000,6.0,varun@example.com
+28,Divya,20.0,female,Ghaziabad,AI/ML,8.3,56 kg,159 cm,2026/02/07,Yes,52000,5.0,divya@example.com
+29,Ritesh,23.0,Male,Delhi,CSE,7.3,79 kg,184 cm,07-Feb-2026,N,41000,2.0,riteshexample.com
+30,Nisha,19.0,F,Noida,CSE,8.6,54 kg,161 cm,08-02-2026,Yes,59000,6.0,nisha@example.com
+31,Aarav Sharma,19.0,Male,Delhi,CSE,8.7,65 kg,175 cm,2026-01-12,Yes,45000,3.0,aarav@example.com
+32,Ravi,19.0,male , Delhi ,cse,"8,4",70kg,172 cm,2026-02-10,1,45k,3.0,ravi@example.com
+33,Pankaj,20.0,Male,NCR,CSE,missing,75 kg,170 cm,10/02/2026,No,unknown,4.0,pankaj@example.com
+34,Sonia,twenty,Female,Noida,CSE,8.0,55 kg,160 cm,2026-02-12,Yes,50000,5.0,sonia@example.com
+35,Aditi,20.0,FEMALE,Delhi,AI-ML,8.5,53 kg,162 cm,12-Feb-2026,No,54000,5.0,aditi@example.com
+36,Manish,19.0,Male,delhi,CSE,7.5,68 kg,175 cm,2026-02-14,Yes,43000,3.0,manish@example.com
+37,Kavya,20.0,Female,Ghaziabad,CSE,8.7,,163 cm,14/02/2026,yes,57000,6.0,kavya@example.com
+38,Deepak,21.0,Male,Noida,CSE,7.9,72 kg,,2026-02-16,No,46000,4.0,deepak@example.com
+39,Shivam,105,Male,Delhi,CSE,10.9,70 kg,176 cm,16-02-2026,Y,49000,5.0,shivam@example.com
+40,Pallavi,20.0,Female,Noida,CSE,8.1,52 kg,159 cm,2026-02-18,N,-5000,4.0,pallavi@example.com
+41,Raj,19.0,Male,Delhi,CSE,7.6,not available,174 cm,18/02/2026,Yes,44000,3.0,raj@example.com
+42,Muskan,20.0,Female,Ghaziabad,CSE,8.8,58 kg,165 cm,2026-02-20,YES,58000,6.0,muskan@example.com
+43,Abhishek,21.0,Male,Noida,CSE-AIML,7.2,76 kg,180 cm,20-Feb-2026,yes,40000,2.0,abhishek@example.com
+44,Komal,19.0,Female,Delhi,CSE,8.4,57 kg,161 cm,2026-02-22,No,51000,five,komal@example.com
+45,Saurabh,20.0,Male,Noida,CSE,7.8,73 kg,177 cm,22/02/2026,YES,47000,3.0,saurabh@example.com
+46,Nandini,19.0,F,Ghaziabad,AI-ML,8.9,51 kg,158 cm,2026-02-24,No,2500000,7.0,nandini@example.com
+47,Akash,22.0,Male,Delhi,CSE,6.9,82 kg,183 cm,24-Feb-2026,N,37000,1.0,akash@example.com
+48,Shreya,20.0,Female,Noida,CSE,8.2,56 kg,160 cm,2026-02-26,Yes,50k,4.0,shreya@example.com
+49,Rohit,19.0,Male,Delhi,CSE,7.4,69 kg,171 cm,26/02/2026,No,42000,3.0,rohit@example.com
+50,Preeti,21.0,Female,Ghaziabad,CSE,8.6,55 kg,164 cm,2026-02-28,yes,"55,000",6.0,preeti@example.com
