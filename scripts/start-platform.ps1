@@ -27,10 +27,16 @@ if ((Test-Path $packagedPython) -and $PythonExe -eq "py") {
 
 $env:MODELMIND_JUPYTER_PORT = $Port
 
+# Strip out external PYTHONHOME and ensure our venv takes strict precedence on PATH
+# This prevents Anaconda or global Python from hijacking jupyter or python subcommands
+Remove-Item Env:\PYTHONHOME -ErrorAction SilentlyContinue
+$env:PATH = "$venv\Scripts;$venv;$env:PATH"
+
+$serverConfigDir = Join-Path $venv "etc\jupyter\jupyter_server_config.d"
 if ($env:JUPYTER_CONFIG_PATH) {
-    $env:JUPYTER_CONFIG_PATH = "$configPath;$env:JUPYTER_CONFIG_PATH"
+    $env:JUPYTER_CONFIG_PATH = "$configPath;$serverConfigDir;$env:JUPYTER_CONFIG_PATH"
 } else {
-    $env:JUPYTER_CONFIG_PATH = $configPath
+    $env:JUPYTER_CONFIG_PATH = "$configPath;$serverConfigDir"
 }
 
 $errorAssistantDir = Join-Path $root "extensions\error-assistant"
@@ -40,11 +46,12 @@ if ($env:PYTHONPATH) {
     $env:PYTHONPATH = $errorAssistantDir
 }
 
+$venvJupyter = Join-Path $venv "share\jupyter"
 $appDataJupyter = Join-Path $env:APPDATA "jupyter"
 if ($env:JUPYTER_PATH) {
-    $env:JUPYTER_PATH = "$appDataJupyter;$env:JUPYTER_PATH"
+    $env:JUPYTER_PATH = "$venvJupyter;$appDataJupyter;$env:JUPYTER_PATH"
 } else {
-    $env:JUPYTER_PATH = $appDataJupyter
+    $env:JUPYTER_PATH = "$venvJupyter;$appDataJupyter"
 }
 
 if ($env:WORKSPACE) {
@@ -105,7 +112,15 @@ $builtExtensionDir = Join-Path $root "extensions\error-assistant\ml_platform_err
 $serverConfigDir = Join-Path $venv "etc\jupyter\jupyter_server_config.d"
 $serverConfigFile = Join-Path $root "extensions\error-assistant\jupyter-config\server-config\ml_platform_error_assistant.json"
 
-if (-not (Test-Path $jupyter) -or -not (Test-Path (Join-Path $extensionLink "package.json")) -or $SetupOnly -or $env:MODELMIND_SETUP_ONLY -eq "1") {
+$isExtensionInstalled = $false
+try {
+    & $python -c "import ml_platform_error_assistant" 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $isExtensionInstalled = $true
+    }
+} catch { }
+
+if (-not (Test-Path $jupyter) -or -not (Test-Path (Join-Path $extensionLink "package.json")) -or -not $isExtensionInstalled -or $SetupOnly -or $env:MODELMIND_SETUP_ONLY -eq "1") {
     Write-Host "Installing ModelMind dependencies into virtual environment..."
     & $python -m pip install --upgrade pip
     & $python -m pip install -r (Join-Path $root "requirements.txt")
@@ -118,21 +133,14 @@ if (-not (Test-Path $jupyter) -or -not (Test-Path (Join-Path $extensionLink "pac
     } else {
         & $python -m pip install --no-build-isolation (Join-Path $root "extensions\error-assistant")
     }
-
 }
 
-# Ensure pre-built labextension files are in place for ALL Jupyter installations (venv, Anaconda, user profile)
+# Ensure pre-built labextension files are in place in venv and APPDATA
 if (Test-Path $builtExtensionDir) {
     $locations = @(
         $extensionLink,
         (Join-Path $env:APPDATA "jupyter\labextensions\@ml-platform\error-assistant")
     )
-    try {
-        $condaBase = (& python -c "import sys; print(sys.prefix)" 2>$null)
-        if ($condaBase -and (Test-Path (Join-Path $condaBase "share\jupyter"))) {
-            $locations += (Join-Path $condaBase "share\jupyter\labextensions\@ml-platform\error-assistant")
-        }
-    } catch { }
 
     foreach ($loc in $locations) {
         try {
@@ -142,25 +150,19 @@ if (Test-Path $builtExtensionDir) {
     }
 }
 
-# Ensure jupyter_server_config.d is enabled
-if (Test-Path $serverConfigFile) {
-    $configLocations = @(
-        $serverConfigDir,
-        (Join-Path $env:APPDATA "jupyter\jupyter_server_config.d")
-    )
-    try {
-        $condaBase = (& python -c "import sys; print(sys.prefix)" 2>$null)
-        if ($condaBase -and (Test-Path (Join-Path $condaBase "etc\jupyter"))) {
-            $configLocations += (Join-Path $condaBase "etc\jupyter\jupyter_server_config.d")
-        }
-    } catch { }
+# Ensure jupyter_server_config.d has ml_platform_error_assistant enabled across all Jupyter config directories
+$serverExtensionJson = '{"ServerApp": {"jpserver_extensions": {"ml_platform_error_assistant": true}}}'
+$configLocations = @(
+    $serverConfigDir,
+    (Join-Path $configPath "jupyter_server_config.d"),
+    (Join-Path $env:APPDATA "jupyter\jupyter_server_config.d")
+)
 
-    foreach ($cloc in $configLocations) {
-        try {
-            New-Item -ItemType Directory -Path $cloc -Force | Out-Null
-            Copy-Item -LiteralPath $serverConfigFile -Destination (Join-Path $cloc "ml_platform_error_assistant.json") -Force
-        } catch { }
-    }
+foreach ($cloc in $configLocations) {
+    try {
+        New-Item -ItemType Directory -Path $cloc -Force | Out-Null
+        Set-Content -Path (Join-Path $cloc "ml_platform_error_assistant.json") -Value $serverExtensionJson -Force
+    } catch { }
 }
 
 if ($SetupOnly -or $env:MODELMIND_SETUP_ONLY -eq "1") {
@@ -173,4 +175,19 @@ if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
     Write-Host "Model installation remains explicit and must be approved before any pull command."
 }
 
-& $jupyter lab --no-browser --port $Port --ServerApp.ip=127.0.0.1 --ServerApp.token='' --ServerApp.password='' --ServerApp.open_browser=False --ExtensionApp.open_browser=False --LabServerApp.open_browser=False "--ServerApp.root_dir=$Workspace"
+# Use python -m jupyterlab to guarantee running inside the ModelMind virtual environment
+# and never fall back to an external Python / Anaconda installation.
+& $python -m jupyterlab `
+    --no-browser `
+    --port $Port `
+    --ServerApp.ip=127.0.0.1 `
+    --ServerApp.token='' `
+    --ServerApp.password='' `
+    --IdentityProvider.token='' `
+    --IdentityProvider.password='' `
+    --ServerApp.open_browser=False `
+    --ExtensionApp.open_browser=False `
+    --LabServerApp.open_browser=False `
+    "--ServerApp.root_dir=$Workspace" `
+    --ServerApp.jpserver_extensions="ml_platform_error_assistant=True"
+
