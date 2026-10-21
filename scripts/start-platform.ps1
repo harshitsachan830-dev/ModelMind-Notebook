@@ -92,18 +92,35 @@ if (-not (Test-Path $python)) {
     throw "The virtual environment Python executable was not created: $python"
 }
 
-if (-not (Test-Path $jupyter) -or $SetupOnly -or $env:MODELMIND_SETUP_ONLY -eq "1") {
+$builtExtensionDir = Join-Path $root "extensions\error-assistant\ml_platform_error_assistant\labextension"
+$serverConfigDir = Join-Path $venv "etc\jupyter\jupyter_server_config.d"
+$serverConfigFile = Join-Path $root "extensions\error-assistant\jupyter-config\server-config\ml_platform_error_assistant.json"
+
+if (-not (Test-Path $jupyter) -or -not (Test-Path (Join-Path $extensionLink "package.json")) -or $SetupOnly -or $env:MODELMIND_SETUP_ONLY -eq "1") {
     Write-Host "Installing ModelMind dependencies into virtual environment..."
     Invoke-CheckedCommand -FilePath $python -CommandArguments @("-m", "pip", "install", "--upgrade", "pip")
     Invoke-CheckedCommand -FilePath $python -CommandArguments @("-m", "pip", "install", "-r", (Join-Path $root "requirements.txt"))
     Invoke-CheckedCommand -FilePath $python -CommandArguments @("-m", "pip", "install", "-r", (Join-Path $root "modelmind-source\backend\requirements.txt"))
-    if (Test-Path -LiteralPath $extensionLink) {
-        $extensionItem = Get-Item -LiteralPath $extensionLink -Force
-        if ($extensionItem.LinkType) {
-            Remove-Item -LiteralPath $extensionLink
-        }
+
+    $wheel = Get-ChildItem (Join-Path $root "wheels\ml_platform_error_assistant-*.whl") -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($wheel) {
+        Write-Host "Installing ModelMind extension from pre-built wheel..."
+        Invoke-CheckedCommand -FilePath $python -CommandArguments @("-m", "pip", "install", "--no-deps", $wheel.FullName, "--force-reinstall")
+    } else {
+        Invoke-CheckedCommand -FilePath $python -CommandArguments @("-m", "pip", "install", "--no-build-isolation", (Join-Path $root "extensions\error-assistant"))
     }
-    Invoke-CheckedCommand -FilePath $python -CommandArguments @("-m", "pip", "install", (Join-Path $root "extensions\error-assistant"))
+
+    # Ensure pre-built labextension files are in place in share/jupyter/labextensions
+    if (Test-Path $builtExtensionDir) {
+        New-Item -ItemType Directory -Path $extensionLink -Force | Out-Null
+        Copy-Item -Path (Join-Path $builtExtensionDir "*") -Destination $extensionLink -Recurse -Force
+    }
+
+    # Ensure jupyter_server_config.d is enabled
+    if (Test-Path $serverConfigFile) {
+        New-Item -ItemType Directory -Path $serverConfigDir -Force | Out-Null
+        Copy-Item -LiteralPath $serverConfigFile -Destination (Join-Path $serverConfigDir "ml_platform_error_assistant.json") -Force
+    }
 }
 
 if (-not (Test-Path $jupyter)) {
