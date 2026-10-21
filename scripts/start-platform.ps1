@@ -35,8 +35,18 @@ if ($env:WORKSPACE) {
     $Workspace = $env:WORKSPACE
 }
 $Workspace = $Workspace.Trim().Trim('"', "'").TrimEnd('\')
-if (-not (Test-Path -LiteralPath $Workspace)) {
-    [System.IO.Directory]::CreateDirectory($Workspace) | Out-Null
+try {
+    if (-not (Test-Path -LiteralPath $Workspace)) {
+        [System.IO.Directory]::CreateDirectory($Workspace) | Out-Null
+    }
+} catch {
+    $homeDir = if ($env:USERPROFILE) { $env:USERPROFILE } else { $HOME }
+    $Workspace = Join-Path $homeDir "ModelMind Notebooks"
+    try {
+        if (-not (Test-Path -LiteralPath $Workspace)) {
+            [System.IO.Directory]::CreateDirectory($Workspace) | Out-Null
+        }
+    } catch { }
 }
 
 if (Test-Path $envFile) {
